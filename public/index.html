@@ -202,44 +202,49 @@
             </div>
           </div>
         </section>
-        <div class="container mt-5"></div>
         <div class="row mb-3">
           <div class="col">
-            <button
-              class="btn btn-primary mr-1"
-              type="submit"
-              onclick="sendRequest('api/assistant')"
-            >
-              Get Assistant by Name
-            </button>
+            <label for="target_selection">Send to:</label>
+            <select id="target_selection" class="form-select" onchange="toggleAssistantButtons()">
+              <option value="chatgpt">ChatGPT</option>
+              <option value="assistant">Assistant</option>
+            </select>
           </div>
-            <div class="col">
-              <input
-                type="text"
-                id="assistant_name"
-                name="assistant_name"
-                value="TestAgent"
-              />
-            </div>
-           
-            <div class="col">
-              <input
-                type="text"
-                id="assistant_id"
-                name="assistant_id"
-                value="Assistant ID"
-              />
-            </div>
-          </div>
+        </div>
+        
+        <!-- Assistant-specific buttons -->
+        <div id="assistant-buttons" style="display:none;">
+          <div class="container mt-5"></div>
           <div class="row mb-3">
             <div class="col">
-              <label for="target_selection">Send to:</label>
-              <select id="chatgpt" class="form-select">
-                <option value="assistant">Assistant</option>
-                <option value="chatgpt">ChatGPT</option>
-              </select>
+              <button
+                class="btn btn-primary mr-1"
+                type="submit"
+                onclick="sendRequest('api/assistant')"
+              >
+                Get Assistant by Name
+              </button>
             </div>
-          </div>
+              <div class="col">
+                <input
+                  type="text"
+                  id="assistant_name"
+                  name="assistant_name"
+                  value="TestAgent"
+                />
+              </div>
+            
+              <div class="col">
+                <input
+                  type="text"
+                  id="assistant_id"
+                  name="assistant_id"
+                  value="Assistant ID"
+                />
+              </div>
+            </div>
+          </div>  
+         
           <div class="row mb-3">
             <div class = "col">
               <button
@@ -301,4 +306,21 @@
       </div>
     </div>
   </body>
+  <script>
+    function toggleAssistantButtons() {
+      const selectedTarget = document.getElementById("target_selection").value;
+      const assistantButtons = document.getElementById("assistant-buttons");
+    
+      if (selectedTarget === "assistant") {
+        assistantButtons.style.display = "block"; // Show Assistant buttons
+      } else {
+        assistantButtons.style.display = "none"; // Hide Assistant buttons
+      }
+    }
+    
+    // Set the default view when the page loads
+    document.addEventListener("DOMContentLoaded", function () {
+      toggleAssistantButtons(); // Initialize with ChatGPT as the default
+    });
+  </script>
 </html>
