@@ -12,6 +12,7 @@
 
     <script>
       let state = {
+        chatgpt:true,
         assistant_id: "",
         assistant_name: "",
         dir_path: "",
@@ -21,6 +22,7 @@
         run_id: "",
         run_status: "",
         vector_store_id: "",
+        tools:[],
       };
 
       async function get_data_from_elements() {
@@ -118,8 +120,40 @@
           responseDiv.appendChild(document.createElement("br")); // Add a line break for readability
         });
       }
+      async function sendRequest(action) {
+        get_data_from_elements();
+        
+        // Get the selected target (Assistant or ChatGPT) from the dropdown
+        const selectedTarget = document.getElementById("target_selection").value;
+        
+        let route;
+        
+        // Determine route based on the selection
+        if (selectedTarget === "assistant") {
+          route = `api/assistant/${action}`;
+        } else if (selectedTarget === "chatgpt") {
+          route = `api/chatgpt/${action}`;
+        }
+      
+        console.log(`sending data: ${JSON.stringify(state)} to ${route}`);
+        let response = await fetch(`/${route}`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(state),
+          mode: "cors",
+        });
+        let res = await response.json(); // we always get back {message, state}
+        console.log(`In UI response: ${JSON.stringify(res)}`);
+        await parse_response(route, res);
+      
+        return;
+      }
       async function sendRequest(route) {
         get_data_from_elements();
+            // Get the selected target (Assistant or ChatGPT) from the dropdown
+      
         console.log(`sending data: ${JSON.stringify(state)} to ${route}`);
         let response = await fetch(`/${route}`, {
           method: "POST",
@@ -184,9 +218,10 @@
                 type="text"
                 id="assistant_name"
                 name="assistant_name"
-                value="Agent Name"
+                value="TestAgent"
               />
             </div>
+           
             <div class="col">
               <input
                 type="text"
@@ -194,6 +229,15 @@
                 name="assistant_id"
                 value="Assistant ID"
               />
+            </div>
+          </div>
+          <div class="row mb-3">
+            <div class="col">
+              <label for="target_selection">Send to:</label>
+              <select id="chatgpt" class="form-select">
+                <option value="assistant">Assistant</option>
+                <option value="chatgpt">ChatGPT</option>
+              </select>
             </div>
           </div>
           <div class="row mb-3">

@@ -1,5 +1,5 @@
 // server.js
-import express from 'express';
+import express, { response } from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
@@ -7,13 +7,13 @@ import OpenAI from 'openai';
 import fs from 'fs';
 import { URL } from 'url';
 import { Console } from 'console';
+import { getFunctions} from './workers.js';
 
 // Load environment variables
 dotenv.config();
 
 // Determine __dirname since it's not available in ES6 modules
 const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 const app = express();
 const port = 3001;
@@ -23,14 +23,14 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Serve static files from the 'public' directory
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.resolve(process.cwd(), './public')));
 
 
 const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
 });
 // Define global variables focus to keep track of the assistant, file, thread and run
-let state = { assistant_id: "", assistant_name: "", dir_path: "", news_path: "", thread_id: "", user_message: "", run_id: "", run_status: "", vector_store_id: "" };
+let state = { chatgtp: true, assistant_id: "", assistant_name: "", dir_path: "", news_path: "", thread_id: "", user_message: "", run_id: "", run_status: "", vector_store_id: "", tools:[] };
 
 // API endpoint to create or get an assistant
 app.post('/api/assistant', async (req, res) => {
@@ -51,6 +51,26 @@ app.post('/api/assistant', async (req, res) => {
         res.status(500).json({ message: 'Failed to create or get assistant.', "state": state });
     }
 });
+
+app.post('/api/chatgpt', async (req, res) => {
+    try {
+        const prompt = req.body.prompt;
+        const chatCompletion = await openai.chat.completions.create({
+          messages: [
+            { role: 'system', content: "you are a helpful agent" },
+            { role: 'user', content: prompt }
+          ],
+          model: 'gpt-3.5-turbo',
+        });
+        let message = chatCompletion.choices[0].message.content;
+        console.log(message)
+        res.json({ text: message });
+      } catch (error) {
+        console.error('Error calling OpenAI:', error);
+        res.status(500).send('Error processing your request');
+      }
+});
+
 
 // API endpoint to create a thread
 app.post('/api/thread', async (req, res) => {
@@ -82,17 +102,32 @@ app.post('/api/prompt', async (req, res) => {
 app.post('/api/run', async (req, res) => {
     state = req.body;
     try {
-        let all_messages = await run_agent()
-        res.status(200).json({ message: all_messages, state: state })
+        if (state.chatgpt) {
+            let message = await run_chatgpt()
+            res.status(200).json({ message: message, "state": state });
+        }
+        else{
+            let all_messages = await run_agent()
+            res.status(200).json({ message: all_messages, state: state })
+        }
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: 'Failed to run agent.', "state": state });
     }
 });
+app.post('/api/getFunctions', async (req, res) => {
 
-let assistants = {}
-//let tools = [{ role:"function", type: "code_interpreter" }, { role:"function",type: "retrieval" }]
-let tools = [];
+    try {
+        const functions = await getFunctions();
+        console.log("Got functions: " + JSON.stringify(functions))
+        let message = `got functions ${JSON.stringify(functions)}`;
+        res.status(200).json({ message: functions, "state": state });
+
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Failed to get functions.', "state": state });
+    }
+});
 
 
 // requires action is a special case where we need to call a function
@@ -114,7 +149,7 @@ async function get_assistant(name, instructions) {
         if (assistant.name != null) {
             if (assistant.name.toLowerCase() == name.toLowerCase()) {
                 state.assistant_id = assistant.id;
-                tools = assistant.tools;  // get the tool
+                state.tools = assistant.tools;  // get the tool
                 break
             }
         }
@@ -172,6 +207,26 @@ async function run_agent() {
         return error;
     }
 }
+async function run_chatgpt() {
+    try {
+        let message = state.user_message;
+        const chatCompletion = await openai.chat.completions.create({
+            messages: [
+                { role: 'system', content: "you are a helpful agent" },
+                { role: 'user', content: message }
+            ],
+            model: 'gpt-3.5-turbo',
+        });
+        let response = chatCompletion.choices[0].message.content;
+        console.log(`ChatGPT response: ${response}`)
+        return response;
+    }
+    catch (error) {
+        console.log(error);
+        return error;
+    }
+}
+
 async function get_all_messages(response) {
     let all_messages = [];
     let role = "";
