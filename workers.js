@@ -1,9 +1,8 @@
 import fs from 'fs';
 import { Server, get } from 'http';
 import path from 'path';
-import {state} from './server.js';
 import OpenAI from 'openai';
-
+import {state, get_assistant, create_thread, run_agent, run_chatgpt, get_all_messages} from './server.js';
 const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
 });
@@ -13,7 +12,6 @@ async function createAssistant(name, instructions) {
 
         let local_tools = [];
     // lets just add all the tools to the assistant
-        //let tools = await get_tools(assistant_id);
         
         let keys = Object.keys(functions);
         for (let key of keys) {
@@ -30,6 +28,8 @@ async function createAssistant(name, instructions) {
         });
         state.assistant_id = assistant.id
         state.assistant_name = name;
+        state.tools = local_tools;
+        console.log(`Assistant created state: ${JSON.stringify(state)}`);
     
         return assistant;
     } catch (error) {
@@ -40,7 +40,7 @@ async function createAssistant(name, instructions) {
 async function getFunctions() {
    
     const files = fs.readdirSync(path.resolve(process.cwd(), "./functions"));
-    const openAIFunctions = [];
+    const openAIFunctions = {};
 
     for (const file of files) {
         if (file.endsWith(".js")) {
@@ -48,22 +48,36 @@ async function getFunctions() {
             const modulePath = `./functions/${moduleName}.js`;
             const { details, execute } = await import(modulePath);
 
-            openAIFunctions.push( {
+            openAIFunctions[moduleName] = {
                 "details": details,
                 "execute": execute
-            });
+            };
         }
     }
-    state.tools = openAIFunctions
     return openAIFunctions;
 }
+
+async function get_response(thread_id){
+  messages = await client.beta.threads.messages.list(thread_id=thread_id)
+  message_content = messages.data[0].content[0].text
+
+  // Remove annotations
+  annotations = message_content.annotations
+  for (annotation in annotations){
+    message_content.value = message_content.value.replace(annotation.text, '')
+  }
+  response_message = message_content.value
+  return response_message
+}
 async function get_and_run_tool(response) {
-    let thread_id = focus.thread_id;
-    let run_id = focus.run_id;
+    let thread_id = state.thread_id;
+    let run_id = state.run_id;
+    console.log(`in get_and_run_tool: ${JSON.stringify(state)}`);
     // extract function to be called from response
     const toolCalls = response.required_action.submit_tool_outputs.tool_calls;
     let toolOutputs = []
     let functions_available = await getFunctions();
+
     for (let toolCall of toolCalls) {
         console.log("toolCall: " + JSON.stringify(toolCall));
         let functionName = toolCall.function.name;
@@ -81,7 +95,7 @@ async function get_and_run_tool(response) {
                 tool_call_id: toolCall.id,
                 output: JSON.stringify(functionResponse)
             });
-            let text = JSON.stringify({ message: `function ${functionName} called`, focus: focus });
+            let text = JSON.stringify({ message: `function ${functionName} called`, state: state });
             await openai.beta.threads.runs.submitToolOutputs(
                 thread_id,
                 run_id,
@@ -94,4 +108,4 @@ async function get_and_run_tool(response) {
         continue;
     }
 }
-export {openai, createAssistant,get_and_run_tool};
+export {openai, createAssistant, getFunctions, get_response, get_and_run_tool};

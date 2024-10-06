@@ -7,7 +7,7 @@ import OpenAI from 'openai';
 import fs from 'fs';
 import { URL } from 'url';
 import { Console } from 'console';
-import { openai, createAssistant} from './workers.js';
+import { openai, createAssistant, getFunctions, get_response, get_and_run_tool,  } from './workers.js';
 
 // Load environment variables
 dotenv.config();
@@ -16,7 +16,7 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 
 const app = express();
-const port = 3001;
+const port = 3002;
 
 // Middleware to parse JSON and URL-encoded data
 app.use(express.json());
@@ -41,6 +41,7 @@ app.post('/api/assistant', async (req, res) => {
         if (assistant != null) {
             state.assistant_id = assistant.id;
             state.assistant_name = assistant.name;
+            state.chatgtp = false;
         }
 
         let message = `got Assistant ${state.assistant_name} : ${JSON.stringify(assistant)}`;
@@ -102,10 +103,12 @@ app.post('/api/run', async (req, res) => {
     state = req.body;
     try {
         if (state.chatgpt) {
+            console.log("Running ChatGPT")
             let message = await run_chatgpt()
             res.status(200).json({ message: message, "state": state });
         }
         else{
+            console.log("Running Assistant")
             let all_messages = await run_agent()
             res.status(200).json({ message: all_messages, state: state })
         }
@@ -115,11 +118,6 @@ app.post('/api/run', async (req, res) => {
     }
 });
 
-
-// requires action is a special case where we need to call a function
-async function get_and_run_tool(response) {
-   
-}
 
 
 async function get_assistant(name, instructions) {
@@ -168,6 +166,7 @@ async function create_thread() {
 async function run_agent() {
     try {
         let thread_id = state.thread_id;
+        let assistant_id = state.assistant_id;
         let message = state.user_message;
         console.log(`In run_agent state: ${JSON.stringify(state)}`)
         await openai.beta.threads.messages.create(thread_id,
@@ -177,9 +176,42 @@ async function run_agent() {
             
             })
         // run and poll thread V2 API feature
+    
         let run = await openai.beta.threads.runs.createAndPoll(thread_id, {
             assistant_id: state.assistant_id
-        })
+          })
+        state.run_id = run.id;
+        // RUN STATUS: REQUIRES ACTION
+        if (run.status == 'requires_action'){
+            console.log("Requires Action - NEED TO CALL FUNCTION")
+            let response = await openai.beta.threads.runs.retrieve(thread_id, state.run_id)
+            let response_message = await get_and_run_tool(response);
+        //Send the response back to the function calling tool
+            run = await openai.beta.threads.runs.submit_tool_outputs_and_poll(
+              thread_id=run.thread_id,
+              run_id=run.id,
+              tool_outputs=[
+                {
+                  "tool_call_id": tool_call_id,
+                  "output": response_message
+                }
+              ],
+          )
+        }
+        // RUN STATUS: COMPLETED
+        if(run.status == "completed"){
+          response_message = await get_response(run.thread_id)
+    
+          return response_message
+        }
+        // RUN STATUS: EXPIRED | FAILED | CANCELLED | INCOMPLETE
+        if(run.status in ['expired','failed','cancelled','incomplete']){
+            console.log(`Run status: ${run.status}`)
+          //do stuff
+        }
+
+
+    
         let run_id = run.id;
         state.run_id = run_id;
 
@@ -231,5 +263,4 @@ async function get_all_messages(response) {
 app.listen(port, () => {
     console.log(`Server is running on http://localhost:${port}`);
 });
-// export state
-export { state };
+export {state, get_assistant, create_thread, run_agent, run_chatgpt, get_all_messages}
