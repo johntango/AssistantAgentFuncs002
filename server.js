@@ -7,7 +7,7 @@ import OpenAI from 'openai';
 import fs from 'fs';
 import { URL } from 'url';
 import { Console } from 'console';
-import { getFunctions} from './workers.js';
+import { openai, createAssistant} from './workers.js';
 
 // Load environment variables
 dotenv.config();
@@ -26,19 +26,18 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.resolve(process.cwd(), './public')));
 
 
-const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
-});
+
 // Define global variables focus to keep track of the assistant, file, thread and run
-let state = { chatgtp: true, assistant_id: "", assistant_name: "", dir_path: "", news_path: "", thread_id: "", user_message: "", run_id: "", run_status: "", vector_store_id: "", tools:[] };
+let state = { chatgtp: true, assistant_id: "", assistant_name: "", dir_path: "", news_path: "", thread_id: "", user_message: "", run_id: "", run_status: "", vector_store_id: "", tools: [] };
 
 // API endpoint to create or get an assistant
 app.post('/api/assistant', async (req, res) => {
     state = req.body;
-    let instructions = ""
+    let instructions = "you are a helpful agent";
     try {
-        const assistant = await get_assistant(state.assistant_name);
-        console.log("Got assistant: " + assistant.id)
+        // create assistant 
+        const assistant = await createAssistant(state.assistant_name,instructions);
+        console.log("Got New assistant: " + assistant.id)
         if (assistant != null) {
             state.assistant_id = assistant.id;
             state.assistant_name = assistant.name;
@@ -115,19 +114,6 @@ app.post('/api/run', async (req, res) => {
         res.status(500).json({ message: 'Failed to run agent.', "state": state });
     }
 });
-app.post('/api/getFunctions', async (req, res) => {
-
-    try {
-        const functions = await getFunctions();
-        console.log("Got functions: " + JSON.stringify(functions))
-        let message = `got functions ${JSON.stringify(functions)}`;
-        res.status(200).json({ message: functions, "state": state });
-
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: 'Failed to get functions.', "state": state });
-    }
-});
 
 
 // requires action is a special case where we need to call a function
@@ -188,6 +174,7 @@ async function run_agent() {
             {
                 role: "user",
                 content: message,
+            
             })
         // run and poll thread V2 API feature
         let run = await openai.beta.threads.runs.createAndPoll(thread_id, {
@@ -210,12 +197,13 @@ async function run_agent() {
 async function run_chatgpt() {
     try {
         let message = state.user_message;
+   
         const chatCompletion = await openai.chat.completions.create({
             messages: [
                 { role: 'system', content: "you are a helpful agent" },
-                { role: 'user', content: message }
+                { role: 'user', content: message },
             ],
-            model: 'gpt-3.5-turbo',
+            model: 'gpt-4o',
         });
         let response = chatCompletion.choices[0].message.content;
         console.log(`ChatGPT response: ${response}`)
@@ -243,3 +231,5 @@ async function get_all_messages(response) {
 app.listen(port, () => {
     console.log(`Server is running on http://localhost:${port}`);
 });
+// export state
+export { state };
