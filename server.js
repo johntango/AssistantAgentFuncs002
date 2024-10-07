@@ -164,6 +164,9 @@ async function create_thread() {
 
 // This V2 version works using AndPoll. It does not enable Function calls yet
 async function run_agent() {
+
+   
+    
     try {
         let thread_id = state.thread_id;
         let assistant_id = state.assistant_id;
@@ -186,21 +189,11 @@ async function run_agent() {
             console.log("Requires Action - NEED TO CALL FUNCTION")
             let response = await openai.beta.threads.runs.retrieve(thread_id, state.run_id)
             let response_message = await get_and_run_tool(response);
-        //Send the response back to the function calling tool
-            run = await openai.beta.threads.runs.submit_tool_outputs_and_poll(
-              thread_id=run.thread_id,
-              run_id=run.id,
-              tool_outputs=[
-                {
-                  "tool_call_id": tool_call_id,
-                  "output": response_message
-                }
-              ],
-          )
+            return response_message
         }
         // RUN STATUS: COMPLETED
         if(run.status == "completed"){
-          response_message = await get_response(run.thread_id)
+          response_message = await get_response(state.thread_id)
     
           return response_message
         }
@@ -209,9 +202,6 @@ async function run_agent() {
             console.log(`Run status: ${run.status}`)
           //do stuff
         }
-
-
-    
         let run_id = run.id;
         state.run_id = run_id;
 

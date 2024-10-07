@@ -91,6 +91,7 @@ async function get_and_run_tool(response) {
             // check if functionToExecute contains match to  store_in_memory   
             
             let functionResponse = await functionToExecute.execute(...argsArray);
+            console.log(`FunctionResponse from ${functionName }:  ${JSON.stringify(functionResponse)}`);
             toolOutputs.push({
                 tool_call_id: toolCall.id,
                 output: JSON.stringify(functionResponse)

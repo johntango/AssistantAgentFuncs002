@@ -1,36 +1,52 @@
 import { appendFile } from 'fs/promises';
 import { join } from 'path';
 //import WordTokenizer from "natural.WordTokenizer";
-import { OpenAI } from "openai";
-
-const execute = async (memory, key, action) => {
-
-    dotenv.config();
-    // get OPENAI_API_KEY from GitHub secrets
-    const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-    const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
+const execute = async (action, key, memory) => {
     
 
-
-async function storeMemory(memory) {
-    const filePath = join(process.cwd(), 'memories.csv');
+async function storeMemory(action, key, memory) {
+    const filePath = join(process.cwd(), './functions/memories.csv');
     
         // Prepare the text as a CSV entry (with escaping of quotes)
-        const csvEntry = `"${memory.replace(/"/g, '""')}"\n`;
+        //const csvEntry = `"${memory.replace(/"/g, '""')}"\n`;
 
         try {
-            // Asynchronously append the text to the CSV file
-            await appendFile(filePath, csvEntry, 'utf8');
-            console.log('Memory successfully stored!');
+            if (action === 'set') {
+                await appendFile(filePath, `${key}, ${memory}\n`);
+                console.log('Memory stored!'+ memory);
+                return { [key]: memory };
+            } else if (action === 'get') {
+                const data = await fs.promises.readFile(filePath, 'utf8');
+                const lines = data.split('\n');
+                for (const line of lines) {
+                    const [storedKey, storedMemory] = line.split(':');
+                    if (storedKey === key) {
+                        return { [key]: storedMemory };
+                    }
+                }
+                return { [key]: null };
+            } else if (action === 'getall') {
+                const data = await fs
+                    .promises.readFile(filePath, 'utf8')
+                    .catch(() => '');
+                const memories = data   
+                    .split('\n')
+                    .map((line) => {
+                        const [storedKey, storedMemory] = line.split(':');
+                        return { [storedKey]: storedMemory };
+                    });
+                return memories;
+            }
         } catch (err) {
             console.error('Error writing to the file:', err);
         }
+        return `Memory Not stored! ${memory}`;
     }
     
 
 // Example usage (assuming an LLM would call this)
     // Example usage (assuming an LLM would call this)
-    storeMemory(memory);
+    return storeMemory(action, key, memory);
 }
     
 const details = {
@@ -51,7 +67,7 @@ const details = {
                 "description": "The text to store"
             }
         },
-        "required": ["key", "value","action"]
+        "required": ["action", "key", "memory"]
     },
     "description": "Given an entity action, key and memory, this function will store, get, list or delete the memory"
 };
