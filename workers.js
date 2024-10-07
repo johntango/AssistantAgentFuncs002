@@ -2,7 +2,7 @@ import fs from 'fs';
 import { Server, get } from 'http';
 import path from 'path';
 import OpenAI from 'openai';
-import {state, get_assistant, create_thread, run_agent, run_chatgpt, get_all_messages} from './server.js';
+import {state, get_assistant, create_thread, run_agent, run_chatgpt} from './server.js';
 import { response, text } from 'express';
 const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
@@ -77,23 +77,33 @@ async function get_run_status(thread_id, run_id) {
             if (runStatus.status == 'requires_action'){
                 console.log("Requires Action - NEED TO CALL FUNCTION")
                 let response = await openai.beta.threads.runs.retrieve(thread_id, state.run_id)
-                let response_message = await get_and_run_tool(response);
+                await get_and_run_tool(response);
             }
             await new Promise(resolve => setTimeout(resolve, 500)); // Wait for 1 second
             runStatus = await openai.beta.threads.runs.retrieve(thread_id, run_id);
         }
-        return;
+        let messages = await openai.beta.threads.messages.list(thread_id)
+        // its completed so lets get the response
+        return get_all_messages(messages);
     }catch (error) {
         console.log(error);
         return error;
     }
 }
-async function addLastMessagetoArray(message, messages) {
-    messages.push(message.data[0].content[0].text.value)
-    console.log("PRINTING MESSAGES: ");
-    console.log(message.data[0].content[0].text.value)
+async function get_all_messages(response) {
+    let all_messages = [];
+    let role = "";
+    let content = "";
+    for (let message of response.data) {
+        // pick out role and content
+        role = message.role;
+        content = message.content[0].text.value;
+        all_messages.push({ role, content });
+    }
+    return all_messages
 }
 
+// this runs the function/tool and submits the output back to the thread
 async function get_and_run_tool(response) {
     let thread_id = state.thread_id;
     let run_id = state.run_id;
@@ -133,6 +143,6 @@ async function get_and_run_tool(response) {
         }
         continue;
     }
-    return text;
+    return;
 }
-export {openai, createAssistant, getFunctions, get_response, get_and_run_tool,get_run_status,addLastMessagetoArray};
+export {openai, createAssistant, getFunctions, get_response, get_and_run_tool,get_run_status, get_all_messages};

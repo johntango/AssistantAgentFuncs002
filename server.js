@@ -7,7 +7,7 @@ import OpenAI from 'openai';
 import fs from 'fs';
 import { URL } from 'url';
 import { Console } from 'console';
-import { openai, createAssistant, getFunctions, get_response, get_and_run_tool,get_run_status,addLastMessagetoArray  } from './workers.js';
+import { openai, createAssistant, getFunctions, get_response, get_and_run_tool,get_run_status, } from './workers.js';
 
 // Load environment variables
 dotenv.config();
@@ -181,10 +181,10 @@ async function run_agent() {
         state.run_id = run_id;
 
         // loop over the run status until it is completed
-        get_run_status(thread_id, run_id);
-        let message = await openai.beta.threads.messages.list(thread_id)
-        let messages = [];
-        await addLastMessagetoArray(message, messages)
+        let messages = await get_run_status(thread_id, run_id);
+        console.log(`Run Finished: ${JSON.stringify(response)}`)
+        
+        
         return messages;
     }
     catch (error) {
@@ -192,45 +192,7 @@ async function run_agent() {
         return error;
     }
 }
-        
-
-        /*
-        let run = await openai.beta.threads.runs.createAndPoll(thread_id, {
-            assistant_id: state.assistant_id
-          })
-        state.run_id = run.id;
-        // RUN STATUS: REQUIRES ACTION
-        if (run.status == 'requires_action'){
-            console.log("Requires Action - NEED TO CALL FUNCTION")
-            let response = await openai.beta.threads.runs.retrieve(thread_id, state.run_id)
-            let response_message = await get_and_run_tool(response);
-        }
-        // RUN STATUS: COMPLETED
-        if(run.status == "completed"){
-          response_message = await get_response(state.thread_id)
     
-          return response_message
-        }
-        // RUN STATUS: EXPIRED | FAILED | CANCELLED | INCOMPLETE
-        if(run.status in ['expired','failed','cancelled','incomplete']){
-            console.log(`Run status: ${run.status}`)
-          //do stuff
-        }
-        let run_id = run.id;
-        state.run_id = run_id;
-
-        // now retrieve the messages
-        let messages = await openai.beta.threads.messages.list(thread_id);
-        let all_messages = get_all_messages(messages);
-        console.log(`Run Finished: ${JSON.stringify(all_messages)}`)
-        return all_messages;
-    }
-    catch (error) {
-        console.log(error);
-        return error;
-    }
-}
-    */
 async function run_chatgpt() {
     try {
         let message = state.user_message;
@@ -252,20 +214,9 @@ async function run_chatgpt() {
     }
 }
 
-async function get_all_messages(response) {
-    let all_messages = [];
-    let role = "";
-    let content = "";
-    for (let message of response.data) {
-        // pick out role and content
-        role = message.role;
-        content = message.content[0].text.value;
-        all_messages.push({ role, content });
-    }
-    return all_messages
-}
+
 // Start the server
 app.listen(port, () => {
     console.log(`Server is running on http://localhost:${port}`);
 });
-export {state, get_assistant, create_thread, run_agent, run_chatgpt, get_all_messages}
+export {state, get_assistant, create_thread, run_agent, run_chatgpt}

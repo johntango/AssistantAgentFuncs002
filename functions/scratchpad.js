@@ -1,5 +1,6 @@
 import { appendFile } from 'fs/promises';
 import { join } from 'path';
+import fs from 'fs';
 //import WordTokenizer from "natural.WordTokenizer";
 const execute = async (action, key, memory) => {
     
@@ -13,26 +14,27 @@ const execute = async (action, key, memory) => {
             await appendFile(filePath, `${key}, ${memory}\n`);
             console.log('Memory stored!'+ memory);
             return { [key]: memory };
-        } else if (action === 'get') {
+        } else if (action == 'get') {
             const data = await fs.promises.readFile(filePath, 'utf8');
             const lines = data.split('\n');
             for (const line of lines) {
-                const [storedKey, storedMemory] = line.split(':');
-                if (storedKey === key) {
-                    return { [key]: storedMemory };
+                const [storedKey, storedMemory] = line.split(',');
+                if (storedKey == key) {
+                    return { key: storedMemory };
                 }
             }
             return { [key]: null };
-        } else if (action === 'getall') {
+        } else if (action == 'getall') {
             const data = await fs
                 .promises.readFile(filePath, 'utf8')
                 .catch(() => '');
             const memories = data   
                 .split('\n')
                 .map((line) => {
-                    const [storedKey, storedMemory] = line.split(':');
+                    const   [storedKey, storedMemory] = line.split(',');
                     return { [storedKey]: storedMemory };
                 });
+    
             return memories;
         }
     } catch (err) {
