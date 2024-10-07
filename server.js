@@ -7,7 +7,7 @@ import OpenAI from 'openai';
 import fs from 'fs';
 import { URL } from 'url';
 import { Console } from 'console';
-import { openai, createAssistant, getFunctions, get_response, get_and_run_tool,  } from './workers.js';
+import { openai, createAssistant, getFunctions, get_response, get_and_run_tool,get_run_status,addLastMessagetoArray  } from './workers.js';
 
 // Load environment variables
 dotenv.config();
@@ -164,22 +164,37 @@ async function create_thread() {
 
 // This V2 version works using AndPoll. It does not enable Function calls yet
 async function run_agent() {
-
-   
-    
+    let thread_id = state.thread_id;
+    let assistant_id = state.assistant_id;
+    console.log(`In run_agent state: ${JSON.stringify(state)}`)
     try {
-        let thread_id = state.thread_id;
-        let assistant_id = state.assistant_id;
-        let message = state.user_message;
-        console.log(`In run_agent state: ${JSON.stringify(state)}`)
         await openai.beta.threads.messages.create(thread_id,
             {
                 role: "user",
-                content: message,
-            
+                content: state.user_message
             })
-        // run and poll thread V2 API feature
-    
+        let run = await openai.beta.threads.runs.create(thread_id, {
+            assistant_id: assistant_id
+        })
+
+        let run_id = run.id;
+        state.run_id = run_id;
+
+        // loop over the run status until it is completed
+        get_run_status(thread_id, run_id);
+        let message = await openai.beta.threads.messages.list(thread_id)
+        let messages = [];
+        await addLastMessagetoArray(message, messages)
+        return messages;
+    }
+    catch (error) {
+        console.log(error);
+        return error;
+    }
+}
+        
+
+        /*
         let run = await openai.beta.threads.runs.createAndPoll(thread_id, {
             assistant_id: state.assistant_id
           })
@@ -189,7 +204,6 @@ async function run_agent() {
             console.log("Requires Action - NEED TO CALL FUNCTION")
             let response = await openai.beta.threads.runs.retrieve(thread_id, state.run_id)
             let response_message = await get_and_run_tool(response);
-            return response_message
         }
         // RUN STATUS: COMPLETED
         if(run.status == "completed"){
@@ -216,6 +230,7 @@ async function run_agent() {
         return error;
     }
 }
+    */
 async function run_chatgpt() {
     try {
         let message = state.user_message;

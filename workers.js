@@ -3,6 +3,7 @@ import { Server, get } from 'http';
 import path from 'path';
 import OpenAI from 'openai';
 import {state, get_assistant, create_thread, run_agent, run_chatgpt, get_all_messages} from './server.js';
+import { response, text } from 'express';
 const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
 });
@@ -69,6 +70,30 @@ async function get_response(thread_id){
   response_message = message_content.value
   return response_message
 }
+async function get_run_status(thread_id, run_id) {
+    try {
+        let runStatus = await openai.beta.threads.runs.retrieve(thread_id, run_id);
+        while (runStatus.status != 'completed') {
+            if (runStatus.status == 'requires_action'){
+                console.log("Requires Action - NEED TO CALL FUNCTION")
+                let response = await openai.beta.threads.runs.retrieve(thread_id, state.run_id)
+                let response_message = await get_and_run_tool(response);
+            }
+            await new Promise(resolve => setTimeout(resolve, 500)); // Wait for 1 second
+            runStatus = await openai.beta.threads.runs.retrieve(thread_id, run_id);
+        }
+        return;
+    }catch (error) {
+        console.log(error);
+        return error;
+    }
+}
+async function addLastMessagetoArray(message, messages) {
+    messages.push(message.data[0].content[0].text.value)
+    console.log("PRINTING MESSAGES: ");
+    console.log(message.data[0].content[0].text.value)
+}
+
 async function get_and_run_tool(response) {
     let thread_id = state.thread_id;
     let run_id = state.run_id;
@@ -77,7 +102,7 @@ async function get_and_run_tool(response) {
     const toolCalls = response.required_action.submit_tool_outputs.tool_calls;
     let toolOutputs = []
     let functions_available = await getFunctions();
-
+    let text = "";
     for (let toolCall of toolCalls) {
         console.log("toolCall: " + JSON.stringify(toolCall));
         let functionName = toolCall.function.name;
@@ -96,7 +121,7 @@ async function get_and_run_tool(response) {
                 tool_call_id: toolCall.id,
                 output: JSON.stringify(functionResponse)
             });
-            let text = JSON.stringify({ message: `function ${functionName} called`, state: state });
+            text = JSON.stringify({ message: `function ${functionName} called`, state: state });
             await openai.beta.threads.runs.submitToolOutputs(
                 thread_id,
                 run_id,
@@ -108,5 +133,6 @@ async function get_and_run_tool(response) {
         }
         continue;
     }
+    return text;
 }
-export {openai, createAssistant, getFunctions, get_response, get_and_run_tool};
+export {openai, createAssistant, getFunctions, get_response, get_and_run_tool,get_run_status,addLastMessagetoArray};

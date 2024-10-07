@@ -3,50 +3,42 @@ import { join } from 'path';
 //import WordTokenizer from "natural.WordTokenizer";
 const execute = async (action, key, memory) => {
     
-
-async function storeMemory(action, key, memory) {
     const filePath = join(process.cwd(), './functions/memories.csv');
     
         // Prepare the text as a CSV entry (with escaping of quotes)
         //const csvEntry = `"${memory.replace(/"/g, '""')}"\n`;
 
-        try {
-            if (action === 'set') {
-                await appendFile(filePath, `${key}, ${memory}\n`);
-                console.log('Memory stored!'+ memory);
-                return { [key]: memory };
-            } else if (action === 'get') {
-                const data = await fs.promises.readFile(filePath, 'utf8');
-                const lines = data.split('\n');
-                for (const line of lines) {
-                    const [storedKey, storedMemory] = line.split(':');
-                    if (storedKey === key) {
-                        return { [key]: storedMemory };
-                    }
+    try {
+        if (action === 'set') {
+            await appendFile(filePath, `${key}, ${memory}\n`);
+            console.log('Memory stored!'+ memory);
+            return { [key]: memory };
+        } else if (action === 'get') {
+            const data = await fs.promises.readFile(filePath, 'utf8');
+            const lines = data.split('\n');
+            for (const line of lines) {
+                const [storedKey, storedMemory] = line.split(':');
+                if (storedKey === key) {
+                    return { [key]: storedMemory };
                 }
-                return { [key]: null };
-            } else if (action === 'getall') {
-                const data = await fs
-                    .promises.readFile(filePath, 'utf8')
-                    .catch(() => '');
-                const memories = data   
-                    .split('\n')
-                    .map((line) => {
-                        const [storedKey, storedMemory] = line.split(':');
-                        return { [storedKey]: storedMemory };
-                    });
-                return memories;
             }
-        } catch (err) {
-            console.error('Error writing to the file:', err);
+            return { [key]: null };
+        } else if (action === 'getall') {
+            const data = await fs
+                .promises.readFile(filePath, 'utf8')
+                .catch(() => '');
+            const memories = data   
+                .split('\n')
+                .map((line) => {
+                    const [storedKey, storedMemory] = line.split(':');
+                    return { [storedKey]: storedMemory };
+                });
+            return memories;
         }
-        return `Memory Not stored! ${memory}`;
+    } catch (err) {
+        console.error('Error writing to the file:', err);
     }
-    
-
-// Example usage (assuming an LLM would call this)
-    // Example usage (assuming an LLM would call this)
-    return storeMemory(action, key, memory);
+     return `Memory Not stored! ${memory}`;
 }
     
 const details = {
